@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fire & Gas Monitoring Dashboard (Live MQTT)</title>
+    <!-- นำเข้าไลบรารี MQTT.js สำหรับเชื่อมต่อผ่านเว็บเบราว์เซอร์ -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .dashboard-container {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            padding: 30px;
+            border-radius: 16px;
+            width: 500px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        h2 {
+            text-align: center;
+            margin-top: 0;
+            color: #38bdf8;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        /* แถบแสดงสถานะการเชื่อมต่อ MQTT */
+        .status-bar {
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 20px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .sensor-grid {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            flex: 1;
+        }
+        .title {
+            font-size: 11px;
+            color: #94a3b8;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .value {
+            font-size: 24px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        /* กล่องแจ้งเตือน DANGER สีแดงกะพริบตรงกลาง */
+        .danger-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(220, 38, 38, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 16px;
+            animation: pulse-danger 0.8s infinite alternate;
+            z-index: 99;
+        }
+        .danger-content {
+            text-align: center;
+            color: white;
+        }
+        .danger-content h1 {
+            font-size: 40px;
+            margin: 0 0 5px 0;
+            letter-spacing: 3px;
+            text-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+        .danger-content p {
+            font-size: 14px;
+            margin: 0;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        @keyframes pulse-danger {
+            0% { background: rgba(220, 38, 38, 0.85); }
+            100% { background: rgba(239, 68, 68, 0.98); box-shadow: inset 0 0 40px rgba(0,0,0,0.6); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <h2>🔥 FIRE & GAS MONITOR</h2>
+        <div id="connectionStatus" class="status-bar">กำลังเชื่อมต่อ MQTT Broker...</div>
+        
+        <!-- การ์ดแสดงค่าเซนเซอร์ -->
+        <div class="sensor-grid">
+            <div class="card">
+                <div class="title">GAS LEVEL</div>
+                <div id="gasValue" class="value" style="color: #00ffcc;">0</div>
+            </div>
+            <div class="card">
+                <div class="title">FLAME STATUS</div>
+                <div id="flameValue" class="value" style="color: #00ffcc;">NORMAL</div>
+            </div>
+        </div>
+
+        <!-- กล่องแจ้งเตือน DANGER (ซ่อนอยู่โดยค่าเริ่มต้น จะแสดงอัตโนมัติเมื่ออันตราย) -->
+        <div id="dangerBox" class="danger-banner" style="display: none;">
+            <div class="danger-content">
+                <h1>⚠️ DANGER ⚠️</h1>
+                <p>CRITICAL FIRE OR GAS HAZARD DETECTED!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // เชื่อมต่อ MQTT Broker ผ่าน WebSocket (HiveMQ Public Broker)
+        const client = mqtt.connect('ws://broker.hivemq.com:8000/mqtt');
+
+        const statusElem = document.getElementById('connectionStatus');
+        const gasElem = document.getElementById('gasValue');
+        const flameElem = document.getElementById('flameValue');
+        const dangerBox = document.getElementById('dangerBox');
+
+        client.on('connect', function () {
+            statusElem.innerText = '● เชื่อมต่อ MQTT สำเร็จ (Online)';
+            statusElem.style.color = '#10b981';
+            
+            // Subscribe Topic เดียวกับที่ ESP32 ส่งข้อมูลมา
+            client.subscribe('esp32/fire_sensor', function (err) {
+                if (err) {
+                    console.error('Subscribe error:', err);
+                }
+            });
+        });
+
+        client.on('error', function (error) {
+            statusElem.innerText = '● เกิดข้อผิดพลาดในการเชื่อมต่อ MQTT';
+            statusElem.style.color = '#ef4444';
+            console.error(error);
+        });
+
+        // เมื่อมีข้อมูลใหม่ส่งเข้ามาใน Topic
+        client.on('message', function (topic, message) {
+            try {
+                // แปลงข้อความ JSON ที่ส่งมาจาก ESP32
+                const data = JSON.parse(message.toString());
+                const gas = data.gas;
+                const flame = data.flame;
+
+                // อัปเดตค่าแก๊สลงหน้าจอ
+                gasElem.innerText = gas;
+                if (gas > 1000) {
+                    gasElem.style.color = '#ff3333';
+                } else {
+                    gasElem.style.color = '#00ffcc';
+                }
+
+                // อัปเดตสถานะเปลวไฟ (0 คือเจอไฟ, 1 คือปกติ)
+                if (flame === 0) {
+                    flameElem.innerText = 'FIRE DETECTED!';
+                    flameElem.style.color = '#ff3333';
+                } else {
+                    flameElem.innerText = 'NORMAL';
+                    flameElem.style.color = '#00ffcc';
+                }
+
+                // เงื่อนไขเช็กอันตราย: ถ้าแก๊สเกิน 1000 หรือเจอเปลวไฟ (0) ให้แสดงกล่องแดง DANGER ทันที
+                if (gas > 1000 || flame === 0) {
+                    dangerBox.style.display = 'flex'; // แสดงกล่องแดงกะพริบ
+                } else {
+                    dangerBox.style.display = 'none'; // ซ่อนอัตโนมัติเมื่อสถานะกลับมาปกติ
+                }
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+            }
+        });
+    </script>
+</body>
+</html>
