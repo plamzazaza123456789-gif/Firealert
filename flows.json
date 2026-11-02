@@ -1,0 +1,185 @@
+[
+    {
+        "id": "549c14d9d83c03b0",
+        "type": "tab",
+        "label": "Fire & Gas Detection",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "5f41b459b3b3f7df",
+        "type": "mqtt in",
+        "z": "549c14d9d83c03b0",
+        "name": "MQTT Receive (ESP32)",
+        "topic": "esp32/fire_sensor",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "broker_config_id",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 120,
+        "wires": [
+            [
+                "1431801b517f82cb"
+            ]
+        ]
+    },
+    {
+        "id": "1431801b517f82cb",
+        "type": "json",
+        "z": "549c14d9d83c03b0",
+        "name": "Parse JSON",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 380,
+        "y": 120,
+        "wires": [
+            [
+                "8b9061c13ea09c48",
+                "e2f74f47bca85daf",
+                "b98bdb778165f360"
+            ]
+        ]
+    },
+    {
+        "id": "8b9061c13ea09c48",
+        "type": "debug",
+        "z": "549c14d9d83c03b0",
+        "name": "Show All Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 610,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "e2f74f47bca85daf",
+        "type": "function",
+        "z": "549c14d9d83c03b0",
+        "name": "Check Gas & Flame",
+        "func": "let gas = msg.payload.gas;\nlet flame = msg.payload.flame;\n\nif (gas > 1000 || flame === 0) {\n    msg.payload = `⚠️ อันตราย! ตรวจพบความผิดปกติ - แก๊ส: ${gas}, เปลวไฟ: ${flame === 0 ? 'พบไฟ!' : 'ปกติ'}`;\n    return [msg];\n} else {\n    return null;\n}",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 620,
+        "y": 180,
+        "wires": [
+            [
+                "13e7405fcfa81cad",
+                "00c8b99e9671a578"
+            ]
+        ]
+    },
+    {
+        "id": "13e7405fcfa81cad",
+        "type": "debug",
+        "z": "549c14d9d83c03b0",
+        "name": "Alert Output",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "00c8b99e9671a578",
+        "type": "e-mail",
+        "z": "549c14d9d83c03b0",
+        "server": "smtp.gmail.com",
+        "port": "465",
+        "authtype": "BASIC",
+        "saslformat": true,
+        "token": "oauth2Response.access_token",
+        "secure": true,
+        "tls": true,
+        "name": "plam16647@gmail.com",
+        "dname": "Send to Email",
+        "x": 880,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "b98bdb778165f360",
+        "type": "ui_template",
+        "z": "549c14d9d83c03b0",
+        "group": "d1b4597a2738e679",
+        "name": "",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "format": "<div class=\"dashboard-container\">\n    <h2>🔥 FIRE & GAS MONITOR</h2>\n\n    <!-- การ์ดแสดงค่าเซนเซอร์ -->\n    <div class=\"sensor-grid\">\n        <div class=\"card\">\n            <div class=\"title\">GAS LEVEL</div>\n            <div class=\"value\" ng-style=\"{'color': (msg.payload.gas > 1000) ? '#ff3333' : '#00ffcc'}\">\n                {{ msg.payload.gas || 0 }}\n            </div>\n        </div>\n        <div class=\"card\">\n            <div class=\"title\">FLAME STATUS</div>\n            <div class=\"value\" ng-style=\"{'color': (msg.payload.flame === 0) ? '#ff3333' : '#00ffcc'}\">\n                {{ msg.payload.flame === 0 ? 'FIRE!' : 'NORMAL' }}\n            </div>\n        </div>\n    </div>\n\n    <!-- กล่องแจ้งเตือน DANGER สีแดงกะพริบกลางจอ (แสดงอัตโนมัติเมื่ออันตราย) -->\n    <div ng-if=\"msg.payload.gas > 1000 || msg.payload.flame === 0\" class=\"danger-banner\">\n        <div class=\"danger-content\">\n            <h1>⚠️ DANGER ⚠️</h1>\n            <p>CRITICAL FIRE OR GAS HAZARD DETECTED!</p>\n        </div>\n    </div>\n</div>\n\n<style>\n    .dashboard-container {\n        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        background-color: #0f172a;\n        color: #f8fafc;\n        padding: 20px;\n        border-radius: 12px;\n        position: relative;\n        overflow: hidden;\n        border: 1px solid #1e293b;\n    }\n\n    h2 {\n        text-align: center;\n        margin-top: 0;\n        color: #38bdf8;\n        font-size: 16px;\n        letter-spacing: 1px;\n        margin-bottom: 15px;\n    }\n\n    .sensor-grid {\n        display: flex;\n        gap: 10px;\n        justify-content: center;\n    }\n\n    .card {\n        background: #1e293b;\n        border: 1px solid #334155;\n        padding: 15px;\n        border-radius: 8px;\n        text-align: center;\n        flex: 1;\n    }\n\n    .title {\n        font-size: 10px;\n        color: #94a3b8;\n        letter-spacing: 1px;\n        margin-bottom: 5px;\n        font-weight: bold;\n    }\n\n    .value {\n        font-size: 20px;\n        font-weight: bold;\n        font-family: monospace;\n    }\n\n    /* กล่องแดง DANGER */\n    .danger-banner {\n        position: absolute;\n        top: 0;\n        left: 0;\n        right: 0;\n        bottom: 0;\n        background: rgba(220, 38, 38, 0.95);\n        display: flex;\n        align-items: center;\n        justify-content: center;\n        border-radius: 12px;\n        animation: pulse-danger 0.8s infinite alternate;\n        z-index: 99;\n    }\n\n    .danger-content {\n        text-align: center;\n        color: white;\n    }\n\n    .danger-content h1 {\n        font-size: 32px;\n        margin: 0 0 5px 0;\n        letter-spacing: 2px;\n        text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);\n    }\n\n    .danger-content p {\n        font-size: 12px;\n        margin: 0;\n        font-weight: 600;\n    }\n\n    @keyframes pulse-danger {\n        0% {\n            background: rgba(220, 38, 38, 0.85);\n        }\n\n        100% {\n            background: rgba(239, 68, 68, 0.98);\n            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);\n        }\n    }\n</style>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 600,
+        "y": 340,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "broker_config_id",
+        "type": "mqtt-broker",
+        "name": "broker.hivemq.com",
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "d1b4597a2738e679",
+        "type": "ui_group",
+        "z": "549c14d9d83c03b0",
+        "name": "Fire & Gas Monitor",
+        "tab": "a914b562ae589a23",
+        "order": 1,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "a914b562ae589a23",
+        "type": "ui_tab",
+        "z": "549c14d9d83c03b0",
+        "name": "FireAlert",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "8ebd6164377e9360",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-email": "5.2.5",
+            "node-red-dashboard": "3.6.6"
+        }
+    }
+]
